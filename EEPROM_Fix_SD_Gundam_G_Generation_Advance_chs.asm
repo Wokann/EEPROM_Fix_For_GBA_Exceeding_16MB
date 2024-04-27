@@ -20,56 +20,104 @@ EEPROMWrite1_check          equ 0x0808500C //nothing to hack
 
 Hack_Address                equ 0x09218380
 
-
+;.org 0x080000A0
+;   .asciiz "CRAFTSWORD HB3CJ"
 ;.org EEPROM_Type
-;    .asciiz "EEPROM_V126"
+;    .asciiz "EEPROM_V126" ;不做修改，会影响gbarunner2的自动存档补丁识别
 ;.org EEPROM_Config512
 ;    .dw 0x200  :: .dh 0x40  :: .dh 0x300 :: .db 0x6 :: .db 0,0,0
 ;.org EEPROM_Config8k
 ;    .dw 0x2000 :: .dh 0x400 :: .dh 0x300 :: .db 0xE :: .db 0,0,0
 
-.org EEPROMRead
-    push r0-r2,lr          ;r0用作跳转地址，r1用作读写标记，lr记录返回地址
+.org EEPROMRead + 0x10
+    add sp,0x88            ;避开前0x10字节，是因为gbarunner2通过识别eeprom函数前0x10字节并替换sram补丁
+    mov r1,r5              ;为兼容gbarunner2运行，留出这部分数据不做改动，否则会白屏无法运行
+    mov r0,r3              ;ezode的auto模式为通过文件头0xA0的game code识别clean rom的存档格式，故必须强制切换eeprom8k或sram才可运行（也可将game code改为铸剑3、蜡笔食都等32MB eeprom）
+    pop r4-r6              ;到此处为止的代码为将数据还原回初始输入的r0、r1和堆栈（除lr）
+    push r0-r2             ;r0用作跳转地址，r1用作读写标记
     mov r1,0               ;读取存档
     ldr r0,=Save_Fix
     mov pc,r0              ;跳至修复代码
-.pool
+ .pool
+.func SRAMRead_hack
+   pop r0-r2   ;push lr
+   lsl r0,r0,0x10
+   mov r2,r1
+   lsr r0,r0,0xD
+   mov r1,0xE0
+   lsl r1,r1,0x14
+   add r1,r0,r1
+   add r1,7
+   mov r3,0
+ @@Loop1:
+   ldrb r0,[r1,0]
+   strb r0,[r2,0]
+   add r3,1
+   add r2,1
+   sub r1,1
+   cmp r3,7
+   bls @@Loop1
+   mov r0,0
+   pop {r1}
+   bx r1
+.endfunc
 
-.org EEPROMWrite
-    push r0-r2,lr          ;r0用作跳转地址，r1记录读写类别，lr记录返回地址
+.org EEPROMWrite + 0x10
+    add sp,0xB0            ;避开前0x10字节，是因为gbarunner2通过识别eeprom函数前0x10字节并替换sram补丁
+    mov r0,r1              ;为兼容gbarunner2运行，留出这部分数据不做改动，否则会白屏无法运行
+    mov r1,r5              ;ezode的auto模式为通过文件头0xA0的game code识别clean rom的存档格式，故必须强制切换eeprom8k或sram才可运行（也可将game code改为铸剑3、蜡笔食都等32MB eeprom）
+    mov r2,r7
+    pop r4-r7              ;到此处为止的代码为将数据还原回初始输入的r0、r1和堆栈（除lr）
+    push r0-r2             ;r0用作跳转地址，r1记录读写类别
     mov r1,1               ;写入存档
     ldr r0,=Save_Fix
     mov pc,r0              ;跳至修复代码
-.pool
+ .pool
+.func SRAMWrite_hack
+   pop r0-r2   ;push lr
+   lsl r0,r0,0x10
+   mov r2,r1
+   lsr r0,r0,0xD
+   mov r1,0xE0
+   lsl r1,r1,0x14
+   add r1,r0,r1
+   add r1,7
+   mov r3,0
+ @@Loop1:
+   ldrb r0,[r2,0]
+   strb r0,[r1,0]
+   add r3,1
+   add r2,1
+   sub r1,1
+   cmp r3,7
+   bls @@Loop1
+   mov r0,0
+   pop {r1}
+   bx r1
+.endfunc
 
 .org Hack_Address
 .func Save_Fix
-   bl SaveHardware_Check   ;检查硬件
-   lsl r0,r0,1             ;硬件检查结果左移1位
-   add r2,r0,r1            ;合并读写标记及硬件检查结果 bit0(0-读,1-写),bit1(1-haveEEPROM),bit2(1-haveSRAM)
-                           ;0b000(0x0):EEPROMRead 0b001(0x1):EEPROMWrite   ;sram、eeprom都不存在情况下，按eeprom保存
-                           ;0b010(0x2):EEPROMRead 0b011(0x3):EEPROMWrite
-                           ;0b100(0x4):SRAMRead   0b101(0x5):SRAMWrite
-                           ;0b110(0x6):SRAMRead   0b111(0x7):SRAMWrite     ;sram、eeprom都存在情况下，按sram保存
-   lsl r2,r2,0xD
-   lsr r2,r2,0xD
-   cmp r2,0
+   push r1
+   bl SaveHardware_Check   ;检查硬件,返回r0                       
+                           ;0b00(0x0):NoSaveHardware 0b01(0x1):HaveEEPROM
+                           ;0b10(0x2):HaveSRAM       0b11(0x3):HaveEEPROM_SRAM
+                           ;目前设置除了1固定使用eeprom外，其余都使用sram格式
+   pop r1
+   lsl r1,r1,0x1F
+   lsr r1,r1,0x1F
+   lsl r0,r0,0x1D
+   lsr r0,r0,0x1D
+   cmp r1,0                ;确认0-读取或1-写入存档
+   bne @@SaveWrite
+ @@SaveRead:
+   cmp r0,1
    beq @@SaveType_EEPROMRead
-   cmp r2,1
+   b @@SaveType_SRAMRead
+ @@SaveWrite:
+   cmp r0,1
    beq @@SaveType_EEPROMWrite
-   cmp r2,2
-   beq @@SaveType_EEPROMRead
-   cmp r2,3
-   beq @@SaveType_EEPROMWrite
-   cmp r2,4
-   beq @@SaveType_SRAMRead
-   cmp r2,5
-   beq @@SaveType_SRAMWrite
-   cmp r2,6
-   beq @@SaveType_SRAMRead
-   cmp r2,7
-   beq @@SaveType_SRAMWrite
-   b @@End
+   b @@SaveType_SRAMWrite
 
  @@SaveType_EEPROMRead:
    pop r0-r2
@@ -80,25 +128,32 @@ Hack_Address                equ 0x09218380
    bl EEPROMWrite_hack
    b @@End
  @@SaveType_SRAMRead:
-   pop r0-r2
-   bl SRAMRead_hack
-   b @@End
+   ldr r0,=SRAMRead_hack
+   mov pc,r0
+ .pool
+   ;pop r0-r2
+   ;bl SRAMRead_hack
+   ;b @@End
  @@SaveType_SRAMWrite:
-   pop r0-r2
-   bl SRAMWrite_hack
-   b @@End
+   ldr r0,=SRAMWrite_hack
+   mov pc,r0
+ .pool
+   ;pop r0-r2
+   ;bl SRAMWrite_hack
+   ;b @@End
 
  @@End:
-   pop pc
+   pop r1
+   bx r1
 .endfunc
-
 .func SaveHardware_Check
    push r3-r4,lr
    mov r4,0             ;用于记录存档硬件情况，bit0(1-haveEEPROM),bit0(1-haveSRAM)
                         ;0b00(0x0):NoSaveHardware 0b01(0x1):HaveEEPROM
                         ;0b10(0x2):HaveSRAM       0b11(0x3):HaveEEPROM_SRAM
  @@SRAM_check:
-   ldr r1,=0x0E000000   ;SRAM存档地址
+   mov r1,0xE0
+   lsl r1,r1,0x14       ;SRAM存档地址
    ldrb r3,[r1]         ;备份该地址上第一个字节
  @@CompareSRAMData:
    mov r0,0x1
@@ -125,7 +180,8 @@ Hack_Address                equ 0x09218380
  @@End:
    mov r0,r4
    pop r3-r4
-   pop pc
+   pop r1
+   bx r1
  .pool
 .endfunc
 
@@ -477,49 +533,9 @@ Hack_Address                equ 0x09218380
  .pool
 .endfunc
 
-.func SRAMRead_hack
-   push lr
-   lsl r0,r0,0x10
-   mov r2,r1
-   lsr r0,r0,0xD
-   mov r1,0xE0
-   lsl r1,r1,0x14
-   add r1,r0,r1
-   add r1,7
-   mov r3,0
- @@Loop1:
-   ldrb r0,[r1,0]
-   strb r0,[r2,0]
-   add r3,1
-   add r2,1
-   sub r1,1
-   cmp r3,7
-   bls @@Loop1
-   mov r0,0
-   pop pc
-.endfunc
 
-.func SRAMWrite_hack
-   push lr
-   lsl r0,r0,0x10
-   mov r2,r1
-   lsr r0,r0,0xD
-   mov r1,0xE0
-   lsl r1,r1,0x14
-   add r1,r0,r1
-   add r1,7
-   mov r3,0
- @@Loop1:
-   ldrb r0,[r2,0]
-   strb r0,[r1,0]
-   add r3,1
-   add r2,1
-   sub r1,1
-   cmp r3,7
-   bls @@Loop1
-   mov r0,0
-   pop pc
-.endfunc
+
+
 ;EndHack:
 ;    .fill (0x0A000000 - EndHack),0x00
 
