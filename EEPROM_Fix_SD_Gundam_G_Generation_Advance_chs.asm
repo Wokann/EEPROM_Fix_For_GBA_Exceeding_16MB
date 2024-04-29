@@ -655,6 +655,7 @@ Hack_Address                equ 0x09218380
 ;  2-1:eeprom修复版rom，将rom头游戏代码改为铸剑3、蜡笔小新等游戏即可(ezo数据库内识别存档模式为0x23)
 ;  2-2:eeprom修复版rom，进入游戏前设置eeprom8K存档格式打开，且文件大小必须大于0x01200000(小于等于时不会切换为0x23存档模式)
 EndHack:
+;切换填充模式，请更改 IfFill32MB 的定义值
 IfFill32MB    equ   1
    .if (IfFill32MB == 1)
       ;填充满32MB模式
