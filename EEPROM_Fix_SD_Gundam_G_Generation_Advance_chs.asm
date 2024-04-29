@@ -29,43 +29,26 @@ Hack_Address                equ 0x09218380
 ;.org EEPROM_Config8k
 ;    .dw 0x2000 :: .dh 0x400 :: .dh 0x300 :: .db 0xE :: .db 0,0,0
 
+;EEPROM读写函数需避开前0x10字节，是因为gbarunner2通过识别eeprom函数前0x10字节并替换sram补丁
+;为兼容gbarunner2运行，留出这部分数据不做改动，否则会白屏无法运行
+;同时GBA advance Tool的是否打过sram补丁也以同样方式进行识别。
+;ezode的auto模式为通过文件头0xA0的game code识别clean rom的存档格式
+;故必须强制切换eeprom8k或sram才可运行（也可将game code改为铸剑3、蜡笔食都等32MB eeprom）
 .org EEPROMRead + 0x10
-    add sp,0x88            ;避开前0x10字节，是因为gbarunner2通过识别eeprom函数前0x10字节并替换sram补丁
-    mov r1,r5              ;为兼容gbarunner2运行，留出这部分数据不做改动，否则会白屏无法运行
-    mov r0,r3              ;ezode的auto模式为通过文件头0xA0的game code识别clean rom的存档格式，故必须强制切换eeprom8k或sram才可运行（也可将game code改为铸剑3、蜡笔食都等32MB eeprom）
+    add sp,0x88
+    mov r1,r5
+    mov r0,r3
     pop r4-r6              ;到此处为止的代码为将数据还原回初始输入的r0、r1和堆栈（除lr）
     push r0-r2             ;r0用作跳转地址，r1用作读写标记
     mov r1,0               ;读取存档
     ldr r0,=Save_Fix
     mov pc,r0              ;跳至修复代码
  .pool
-.func SRAMRead_hack
-   pop r0-r2   ;push lr
-   lsl r0,r0,0x10
-   mov r2,r1
-   lsr r0,r0,0xD
-   mov r1,0xE0
-   lsl r1,r1,0x14
-   add r1,r0,r1
-   add r1,7
-   mov r3,0
- @@Loop1:
-   ldrb r0,[r1,0]
-   strb r0,[r2,0]
-   add r3,1
-   add r2,1
-   sub r1,1
-   cmp r3,7
-   bls @@Loop1
-   mov r0,0
-   pop {r1}
-   bx r1
-.endfunc
 
 .org EEPROMWrite + 0x10
-    add sp,0xB0            ;避开前0x10字节，是因为gbarunner2通过识别eeprom函数前0x10字节并替换sram补丁
-    mov r0,r1              ;为兼容gbarunner2运行，留出这部分数据不做改动，否则会白屏无法运行
-    mov r1,r5              ;ezode的auto模式为通过文件头0xA0的game code识别clean rom的存档格式，故必须强制切换eeprom8k或sram才可运行（也可将game code改为铸剑3、蜡笔食都等32MB eeprom）
+    add sp,0xB0 
+    mov r0,r1
+    mov r1,r5
     mov r2,r7
     pop r4-r7              ;到此处为止的代码为将数据还原回初始输入的r0、r1和堆栈（除lr）
     push r0-r2             ;r0用作跳转地址，r1记录读写类别
@@ -73,39 +56,31 @@ Hack_Address                equ 0x09218380
     ldr r0,=Save_Fix
     mov pc,r0              ;跳至修复代码
  .pool
-.func SRAMWrite_hack
-   pop r0-r2   ;push lr
-   lsl r0,r0,0x10
-   mov r2,r1
-   lsr r0,r0,0xD
-   mov r1,0xE0
-   lsl r1,r1,0x14
-   add r1,r0,r1
-   add r1,7
-   mov r3,0
- @@Loop1:
-   ldrb r0,[r2,0]
-   strb r0,[r1,0]
-   add r3,1
-   add r2,1
-   sub r1,1
-   cmp r3,7
-   bls @@Loop1
-   mov r0,0
-   pop {r1}
-   bx r1
-.endfunc
 
 .org Hack_Address
+;本EEPROM超容修复程序，可同时兼容EEPROM及SRAM存档格式
+;通过SaveHardware_Check函数进行硬件检查识别。
+;由于硬件检查耗费周期较长，故设置一个bit0标志位，将检查结果（2位）左移1位与其合并，并存入内存0x0203FFFF处，
+;后续程序读取该地址若标记已检查，则直接提取使用该位上存储的检查结果，不再重复计算。
+;由于0x0203FFFF可能被游戏使用，故先行识别0x0203FFFC开始的4字节，以u32形式存储，
+;识别后24位是否为0，则认为未被使用，可将结果存入此地址。
+;若后24位不为0，则认为已被使用，则每次均重复进行硬件检查。
+;提取结果时，若数据存储在内存中，则读取0x0203FFFF的单字节，并右移1位，去掉标志位，得到检查结果（2位）。
+;若数据不存储在内存中，实时计算，则直接得到检查结果（2位）。
+;检查结果的值对应情况：
+;0b00(0x0):NoSaveHardware 0b01(0x1):HaveEEPROM
+;0b10(0x2):HaveSRAM       0b11(0x3):HaveEEPROM_SRAM
+;存档兼容逻辑为，有EEPROM则使用EEPROM（1、3），无EEPROM则使用SRAM（0、2）
 .func Save_Fix
    push r1
+ ;检查内存是否被占用
    ldr r0,=0x0203FFFC
    ldr r0,[r0]
    lsl r0,r0,8
    lsr r0,r0,8
    cmp r0,0
    bne @@RamCanNotBeUsed
-
+ ;可使用内存，检查是否已存入检查结果
  @@RamCanBeUsed:
    ldr r0,=0x0203FFFC
    ldrb r0,[r0,3]
@@ -113,27 +88,25 @@ Hack_Address                equ 0x09218380
    and r0,r1
    cmp r0,1
    beq @@SkipHardware_Check
+ ;未存入检查结果，进行硬件检查，并写入bit0标志位，合并检查结果
  @@DoHardware_Check:
    bl SaveHardware_Check
    lsl r0,r0,1
    add r0,1
    ldr r1,=0x0203FFFC
    strb r0,[r1,3]
+ ;已存入检查结果，直接从内存读取数据
  @@SkipHardware_Check:
    ldr r1,=0x0203FFFC
    ldrb r0,[r1,3]
    lsr r0,r0,1
    b @@CheckResult
  .pool
-
+ ;不可使用内存，直接进行硬件检查
  @@RamCanNotBeUsed:
-   bl SaveHardware_Check   ;检查0x0203FFFC-0x0203FFFF是否被使用，若无用则用于存储检查结果，以减少重复计算，
-                           ;若已被使用，则每次均进行硬件检查。
-                           ;检查硬件的结果若存入内存，则检查结果左移1位，将bit0设为1用作已经检查的标志位，再存入内存
-                           ;后续计算需右移1位恢复检查结果的实际值                      
-                           ;0b00(0x0):NoSaveHardware 0b01(0x1):HaveEEPROM
-                           ;0b10(0x2):HaveSRAM       0b11(0x3):HaveEEPROM_SRAM
-                           ;目前设置除了1，3固定使用eeprom外，其余都使用sram格式
+   bl SaveHardware_Check
+
+ ;判断读取或写入情况，及硬件对应的存档类别
  @@CheckResult:
    pop r1
    lsl r1,r1,0x1F
@@ -142,12 +115,14 @@ Hack_Address                equ 0x09218380
    lsr r0,r0,0x1E          ;获取硬件检查结果
    cmp r1,0                ;确认0-读取或1-写入存档
    bne @@SaveWrite
+ ;读取存档
  @@SaveRead:
    cmp r0,1
    beq @@SaveType_EEPROMRead
    cmp r0,3
    beq @@SaveType_EEPROMRead
    b @@SaveType_SRAMRead
+ ;写入存档
  @@SaveWrite:
    cmp r0,1
    beq @@SaveType_EEPROMWrite
@@ -155,33 +130,54 @@ Hack_Address                equ 0x09218380
    beq @@SaveType_EEPROMWrite
    b @@SaveType_SRAMWrite
 
+ ;读取EEPROM
  @@SaveType_EEPROMRead:
    pop r0-r2
    bl EEPROMRead_hack
    b @@End
+ ;写入EEPROM
  @@SaveType_EEPROMWrite:
    pop r0-r2
    bl EEPROMWrite_hack
    b @@End
+ ;读取SRAM
  @@SaveType_SRAMRead:
-   ldr r0,=SRAMRead_hack
-   mov pc,r0
- .pool
+   pop r0-r2
+   bl SRAMRead_hack
+   b @@End
+   ;ldr r0,=SRAMRead_hack
+   ;mov pc,r0
+ ;.pool
+ ;写入SRAM
  @@SaveType_SRAMWrite:
-   ldr r0,=SRAMWrite_hack
-   mov pc,r0
- .pool
+   pop r0-r2
+   bl SRAMWrite_hack
+   b @@End
+   ;ldr r0,=SRAMWrite_hack
+   ;mov pc,r0
+ ;.pool
 
  @@End:
    pop r1
    bx r1
 .endfunc
 
+;此处代码用于硬件检查，先检查SRAM，后检查EEPROM
+;检查思路为：
+; 1、先从存档内读取初始字节，进行备份
+; 2、准备用于写入存档的检测数据，与备份数据进行对比，若相同，则更换检测数据
+; 3、将检测数据写入存档，并立即读取新数据
+; 4、对比检测数据与读取的新数据，若相同则硬件检查通过记录标志位，若不同则结束该硬件检查
+;硬件检查标志位为：bit0(1-haveEEPROM),bit1(1-haveSRAM)
+;0b00(0x0):NoSaveHardware 0b01(0x1):HaveEEPROM
+;0b10(0x2):HaveSRAM       0b11(0x3):HaveEEPROM_SRAM
+;SRAM检查为在0x0E000000地址上读写单字节数据进行比对
+;EEPROM检查为调用EEPROM读写函数得到8字节数据进行比对（有待简化）
 .func SaveHardware_Check
-   push r3-r4,lr        ;bit0用作是否检查过的标志位，存放于0x0203FFFF
-   mov r4,0b00         ;用于记录存档硬件情况，bit1(1-haveEEPROM),bit2(1-haveSRAM)
-                        ;0b00(0x0):NoSaveHardware 0b01(0x1):HaveEEPROM
-                        ;0b10(0x2):HaveSRAM       0b11(0x3):HaveEEPROM_SRAM
+   push r3-r4,lr
+   mov r4,0b00
+
+ ;SRAM硬件检查
  @@SRAM_check:
    mov r1,0xE0
    lsl r1,r1,0x14       ;SRAM存档地址
@@ -192,15 +188,16 @@ Hack_Address                equ 0x09218380
    bne @@TestWriteSRAM
    mov r0,0xAA
  @@TestWriteSRAM:
-   strb r0,[r1]         ;向该地址写入一字节0x1
-   ldrb r2,[r1]         ;再向该地址读取一字节，
-   cmp r2,r0            ;确认读写是否一致，以判断sram是否正常,对比至少2次，此处为第1次。
+   strb r0,[r1]
+   ldrb r2,[r1]
+   cmp r2,r0
    bne @@EEPROM_check   ;sram异常，跳至检查eeprom
  @@HaveSRAM:
    strb r3,[r1]         ;sram正常，将备份的原字节还原
    add r4,0b10          ;记录SRAM标记
    b @@EEPROM_check
 
+ ;EEPROM硬件检查
  @@EEPROM_check:
    sub sp,0x10
  @@BackUpEEPROM:
@@ -222,7 +219,6 @@ Hack_Address                equ 0x09218380
    b @@TestWriteEEPROM
  @@UseStrings2:
    ldr r1,=(Strings_For_EEPROM_check+8)
-
  @@TestWriteEEPROM:
    push r1                             ;暂存用于校验的字符地址
    mov r0,0
@@ -236,7 +232,6 @@ Hack_Address                equ 0x09218380
    ldr r0,[sp]
    cmp r0,r1                           ;对比字节
    bne @@End
-
  @@HaveEEPROM:
    mov r0,0
    add r1,sp,8
@@ -607,20 +602,70 @@ Hack_Address                equ 0x09218380
  .pool
 .endfunc
 
-EndHack:
-   ;满填充模式
-   ;.fill (0x0A000000 - EndHack),0x00
+.func SRAMRead_hack
+   push lr
+   lsl r0,r0,0x10
+   mov r2,r1
+   lsr r0,r0,0xD
+   mov r1,0xE0
+   lsl r1,r1,0x14
+   add r1,r0,r1
+   add r1,7
+   mov r3,0
+ @@Loop1:
+   ldrb r0,[r1,0]
+   strb r0,[r2,0]
+   add r3,1
+   add r2,1
+   sub r1,1
+   cmp r3,7
+   bls @@Loop1
+   mov r0,0
+   pop {r1}
+   bx r1
+.endfunc
 
-   ;注:若不填充满32MB也可，但需要注意以下使用情况
-   ;   1、SRAM盗卡烧录时，需确保32MB空间全部擦除，避免0x01FFFF00-0x01FFFFFF最后0x100字节有内容残留
-   ;   2、在ezo(de)运行时，由于auto模式读取rom头数据库确定存档类型，无法正常应用修复过的eeprom，解决方法有如下几种：
-   ;     2-1:eeprom修复版rom，将rom头游戏代码改为铸剑3、蜡笔小新等游戏即可(ezo数据库内识别存档模式为0x23)
-   ;     2-2:eeprom修复版rom，进入游戏前设置eeprom8K存档格式打开，且文件大小必须大于0x01200000(小于等于时不会切换为0x23存档模式)
-   ;不填充满32MB模式如下，请注释掉前面的满填充方式
-   .if (EndHack > 0x09200000)
-      .align 16
+.func SRAMWrite_hack
+   push lr
+   lsl r0,r0,0x10
+   mov r2,r1
+   lsr r0,r0,0xD
+   mov r1,0xE0
+   lsl r1,r1,0x14
+   add r1,r0,r1
+   add r1,7
+   mov r3,0
+ @@Loop1:
+   ldrb r0,[r2,0]
+   strb r0,[r1,0]
+   add r3,1
+   add r2,1
+   sub r1,1
+   cmp r3,7
+   bls @@Loop1
+   mov r0,0
+   pop {r1}
+   bx r1
+.endfunc
+
+;末尾字节填充
+;若不填充满32MB也可，但需要注意以下使用情况
+;1、SRAM盗卡烧录时，需确保32MB空间全部擦除，避免0x01FFFF00-0x01FFFFFF最后0x100字节有内容残留
+;2、在ezo(de)运行时，由于auto模式读取rom头数据库确定存档类型，无法正常应用修复过的eeprom，解决方法有如下几种：
+;  2-1:eeprom修复版rom，将rom头游戏代码改为铸剑3、蜡笔小新等游戏即可(ezo数据库内识别存档模式为0x23)
+;  2-2:eeprom修复版rom，进入游戏前设置eeprom8K存档格式打开，且文件大小必须大于0x01200000(小于等于时不会切换为0x23存档模式)
+EndHack:
+IfFill32MB    equ   1
+   .if (IfFill32MB == 1)
+      ;填充满32MB模式
+      .fill (0x0A000000 - EndHack),0x00
    .else
-      .fill (0x09200010 - EndHack),0x00
+      ;不填充满32MB模式
+      .if (EndHack > 0x09200000)
+         .align 16
+      .else
+         .fill (0x09200010 - EndHack),0x00
+      .endif
    .endif
 
 .close
