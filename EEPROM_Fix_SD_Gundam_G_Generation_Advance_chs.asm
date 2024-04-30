@@ -18,6 +18,7 @@ EEPROMWrite                 equ 0x08084E54 //need to hack
 EEPROMCompare               equ 0x08084FB4 //nothing to hack
 EEPROMWrite1_check          equ 0x0808500C //nothing to hack
 
+HardwareSaveFlag            equ 0x06017FFC
 Hack_Address                equ 0x09218380
 
 ;.org 0x080000A0
@@ -60,51 +61,47 @@ Hack_Address                equ 0x09218380
 .org Hack_Address
 ;本EEPROM超容修复程序，可同时兼容EEPROM及SRAM存档格式
 ;通过SaveHardware_Check函数进行硬件检查识别。
-;由于硬件检查耗费周期较长，故设置一个bit0标志位，将检查结果（2位）左移1位与其合并，并存入内存0x0203FFFF处，
-;后续程序读取该地址若标记已检查，则直接提取使用该位上存储的检查结果，不再重复计算。
-;由于0x0203FFFF可能被游戏使用，故先行识别0x0203FFFC开始的4字节，以u32形式存储，
-;识别后24位是否为0，则认为未被使用，可将结果存入此地址。
-;若后24位不为0，则认为已被使用，则每次均重复进行硬件检查。
-;提取结果时，若数据存储在内存中，则读取0x0203FFFF的单字节，并右移1位，去掉标志位，得到检查结果（2位）。
-;若数据不存储在内存中，实时计算，则直接得到检查结果（2位）。
-;检查结果的值对应情况：
+;由于硬件检查耗费周期较长，故设置一个bit31标志位，将检查结果与其合并，并存入显存0x06017FFC处，
+;后续程序读取该地址的值处于(0x80000000-0x80000003)，则表示已经记录结果，可直接提取存储的检查结果，不再重复计算。
+;0x06017FFC作为显存末尾，不一定会被用到，即便被用到，在读取和保存时，画面通常不会有大变动，
+;末尾4字节变动只会影响当前部分画面花屏，但也只需切换刷新游戏界面即可恢复图块（若有被使用到）。
+;在读写的循环中，只需要保证第一次计算时更新硬件信息，后续循环就不用重复计算。
 ;0b00(0x0):NoSaveHardware 0b01(0x1):HaveEEPROM
 ;0b10(0x2):HaveSRAM       0b11(0x3):HaveEEPROM_SRAM
 ;存档兼容逻辑为，有EEPROM则使用EEPROM（1、3），无EEPROM则使用SRAM（0、2）
 .func Save_Fix
    push r1
- ;检查内存是否被占用
-   ldr r0,=0x0203FFFC
+ @@CheckFlagSet:
+   ldr r0,=HardwareSaveFlag
    ldr r0,[r0]
-   lsl r0,r0,8
-   lsr r0,r0,8
-   cmp r0,0
-   bne @@RamCanNotBeUsed
- ;可使用内存，检查是否已存入检查结果
- @@RamCanBeUsed:
-   ldr r0,=0x0203FFFC
-   ldrb r0,[r0,3]
    mov r1,1
-   and r0,r1
-   cmp r0,1
-   beq @@SkipHardware_Check
- ;未存入检查结果，进行硬件检查，并写入bit0标志位，合并检查结果
+   lsl r1,r1,31
+   sub r1,1
+   cmp r0,r1
+   bls @@DoHardware_Check
+   add r1,4
+   cmp r0,r1
+   bhi @@DoHardware_Check
+   b @@SkipHardware_Check
+ ;未存入检查结果，进行硬件检查，并写入bit31标志位，合并检查结果
  @@DoHardware_Check:
    bl SaveHardware_Check
-   lsl r0,r0,1
-   add r0,1
-   ldr r1,=0x0203FFFC
-   strb r0,[r1,3]
+   mov r1,1
+   lsl r1,r1,31
+   add r0,r0,r1
+   sub sp,4
+   str r0,[sp]
+   mov r0,sp
+   ldr r1,=HardwareSaveFlag
+   mov r2,2
+   bl DMA3Transfer_copy
+   add sp,4
  ;已存入检查结果，直接从内存读取数据
  @@SkipHardware_Check:
-   ldr r1,=0x0203FFFC
-   ldrb r0,[r1,3]
-   lsr r0,r0,1
+   ldr r1,=HardwareSaveFlag
+   ldrb r0,[r1]
    b @@CheckResult
  .pool
- ;不可使用内存，直接进行硬件检查
- @@RamCanNotBeUsed:
-   bl SaveHardware_Check
 
  ;判断读取或写入情况，及硬件对应的存档类别
  @@CheckResult:
@@ -655,12 +652,12 @@ Hack_Address                equ 0x09218380
 ;  2-1:eeprom修复版rom，将rom头游戏代码改为铸剑3、蜡笔小新等游戏即可(ezo数据库内识别存档模式为0x23)
 ;  2-2:eeprom修复版rom，进入游戏前设置eeprom8K存档格式打开，且文件大小必须大于0x01200000(小于等于时不会切换为0x23存档模式)
 EndHack:
-;切换填充模式，请更改 IfFill32MB 的定义值
-IfFill32MB    equ   1
+   ;切换填充模式，请更改 IfFill32MB 的定义值
+   IfFill32MB    equ   1
    .if (IfFill32MB == 1)
       ;填充满32MB模式
       .fill (0x0A000000 - EndHack),0x00
-   .else
+   .elseif (IfFill32MB == 0)
       ;不填充满32MB模式
       .if (EndHack > 0x09200000)
          .align 16
