@@ -32,7 +32,7 @@ Hack_Address                equ 0x09218380
 
 ;EEPROM读写函数需避开前0x10字节，是因为gbarunner2通过识别eeprom函数前0x10字节并替换sram补丁
 ;为兼容gbarunner2运行，留出这部分数据不做改动，否则会白屏无法运行
-;同时GBA advance Tool的是否打过sram补丁也以同样方式进行识别。
+;同时GBA Tool advance 的是否打过sram补丁也以同样方式进行识别。
 ;ezode的auto模式为通过文件头0xA0的game code识别clean rom的存档格式
 ;故必须强制切换eeprom8k或sram才可运行（也可将game code改为铸剑3、蜡笔食都等32MB eeprom）
 .org EEPROMRead + 0x10
@@ -72,8 +72,8 @@ Hack_Address                equ 0x09218380
 .func Save_Fix
    push r1
  @@CheckFlagSet:
-   ldr r0,=HardwareSaveFlag
-   ldr r0,[r0]
+   ldr r2,=HardwareSaveFlag
+   ldr r0,[r2]
    mov r1,1
    lsl r1,r1,31
    sub r1,1
@@ -81,31 +81,48 @@ Hack_Address                equ 0x09218380
    bls @@DoHardware_Check
    add r1,4
    cmp r0,r1
-   bhi @@DoHardware_Check
-   b @@SkipHardware_Check
- ;未存入检查结果，进行硬件检查，并写入bit31标志位，合并检查结果
+   bls @@SkipHardware_Check
+ ;未存入检查结果，进行硬件检查，并写入bit31标志位，合并检查结果，并存入内存
  @@DoHardware_Check:
    bl SaveHardware_Check
    mov r1,1
    lsl r1,r1,31
    add r0,r0,r1
-   sub sp,4
-   str r0,[sp]
-   mov r0,sp
-   ldr r1,=HardwareSaveFlag
-   mov r2,2
-   bl DMA3Transfer_copy
-   add sp,4
+   str r0,[r2]
  ;已存入检查结果，直接从内存读取数据
  @@SkipHardware_Check:
-   ldr r1,=HardwareSaveFlag
-   ldrb r0,[r1]
+   ldrb r0,[r2]
+   pop r1
    b @@CheckResult
  .pool
+/*
+;此代码用于切换cpu模式，sys、svc、irq，从sys切换到svc，获取svc栈的地址，
+;svc栈地址再减去128，或许是比较安全不被使用的空间，可能能用来存放临时数据。
+;或者使用irq区域。
+;但也需要确认实际情况是否会被占用，如宝可梦绿宝石对这块栈的分配，0x80有可能会被游戏用到，不能随意使用）
+;来自于enler大佬的存放临时数据的思路
+   .align 4
+   .thumb
+   push r0
+   bx pc
+   .arm
+   mov r0,0x12
+   msr cpsr_cf,r0
+   mov r1,sp
+   sub r1,0x80
+   mov r0,0x1f
+   msr cpsr_cf,r0
+   add r0,pc,1
+   bx r0
+   .thumb
+   pop r0
+   str r0,[r1]
+;或选择0x03007EE0-0x03007EEF之间的用于异常情况的区域Debug Exception Stack存放。
+;（见gbatek GBA BIOS RAM Usage）
+*/
 
  ;判断读取或写入情况，及硬件对应的存档类别
  @@CheckResult:
-   pop r1
    lsl r1,r1,0x1F
    lsr r1,r1,0x1F
    lsl r0,r0,0x1E
@@ -142,17 +159,11 @@ Hack_Address                equ 0x09218380
    pop r0-r2
    bl SRAMRead_hack
    b @@End
-   ;ldr r0,=SRAMRead_hack
-   ;mov pc,r0
- ;.pool
  ;写入SRAM
  @@SaveType_SRAMWrite:
    pop r0-r2
    bl SRAMWrite_hack
    b @@End
-   ;ldr r0,=SRAMWrite_hack
-   ;mov pc,r0
- ;.pool
 
  @@End:
    pop r1
@@ -171,7 +182,7 @@ Hack_Address                equ 0x09218380
 ;SRAM检查为在0x0E000000地址上读写单字节数据进行比对
 ;EEPROM检查为调用EEPROM读写函数得到8字节数据进行比对（有待简化）
 .func SaveHardware_Check
-   push r3-r4,lr
+   push r2-r4,lr
    mov r4,0b00
 
  ;SRAM硬件检查
@@ -239,7 +250,7 @@ Hack_Address                equ 0x09218380
  @@End:
    add sp,0x10
    mov r0,r4
-   pop r3-r4
+   pop r2-r4
    pop r1
    bx r1
  .pool
