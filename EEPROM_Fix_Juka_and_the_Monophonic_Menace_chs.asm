@@ -1,25 +1,25 @@
 .gba
-.create "./roms/RockmanZero4_chs_eepromfix.gba",0x08000000
+.create "./roms/Juka_and_the_Monophonic_Menace_(C)_eepromfix.gba",0x08000000
 .close
-.open "./roms/RockmanZero4_chs.gba","./roms/RockmanZero4_chs_eepromfix.gba",0x08000000
+.open "./roms/Juka_and_the_Monophonic_Menace_(C).gba","./roms/Juka_and_the_Monophonic_Menace_(C)_eepromfix.gba",0x08000000
 
-gEEPROMConfig               equ 0x0203D7B0
+gEEPROMConfig               equ 0x03006600
 EEPROM_SaveAddress          equ 0x0DFFFF00
 
-EEPROM_Type                 equ 0x0882AF68
+EEPROM_Type                 equ 0x08F7588C
 EEPROM_Config512            equ EEPROM_Type + 0xC
 EEPROM_Config8k             equ EEPROM_Config512 + 0xC
 
-EEPROMConfigure             equ 0x08128BF8 //nothing to hack
-DMA3Transfer                equ 0x08128C40 //nothing to hack
-EEPROMRead                  equ 0x08128CC0 //need to hack
-EEPROMWrite1                equ 0x08128D70 //nothing to hack
-EEPROMWrite                 equ 0x08128D84 //need to hack
-EEPROMCompare               equ 0x08128EE4 //nothing to hack
-EEPROMWrite1_check          equ 0x08128F3C //nothing to hack
+EEPROMConfigure             equ 0x0802767C //nothing to hack
+DMA3Transfer                equ 0x080276C4 //nothing to hack
+EEPROMRead                  equ 0x08027744 //need to hack
+EEPROMWrite1                equ 0x080277F4 //nothing to hack
+EEPROMWrite                 equ 0x08027808 //need to hack
+EEPROMCompare               equ 0x08027968 //nothing to hack
+EEPROMWrite1_check          equ 0x08027A00 //nothing to hack
 
 HardwareSaveFlag            equ 0x06017FFC
-Hack_Address                equ 0x09060000
+Hack_Address                equ 0x09176E60
 
 ;.org 0x080000A0
 ;   .asciiz "CRAFTSWORD HB3CJ"
@@ -664,7 +664,7 @@ Hack_Address                equ 0x09060000
 ;  2-2:eeprom修复版rom，进入游戏前设置eeprom8K存档格式打开，且文件大小必须大于0x01200000(小于等于时不会切换为0x23存档模式)
 EndHack:
    ;切换填充模式，请更改 IfFill32MB 的定义值
-   IfFill32MB    equ   1
+   IfFill32MB    equ   0
    .if (IfFill32MB == 1)
       ;填充满32MB模式
       .fill (0x0A000000 - EndHack),0x00

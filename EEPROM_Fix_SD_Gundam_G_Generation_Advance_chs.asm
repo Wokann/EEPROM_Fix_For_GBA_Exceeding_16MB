@@ -1,7 +1,7 @@
 .gba
-.create "./SD_Gundam_G_Generation_Advance_chs_1.4_eepromfix.gba",0x08000000
+.create "./roms/SD_Gundam_G_Generation_Advance_chs_1.4_eepromfix.gba",0x08000000
 .close
-.open "./SD_Gundam_G_Generation_Advance_chs_1.4.gba","./SD_Gundam_G_Generation_Advance_chs_1.4_eepromfix.gba",0x08000000
+.open "./roms/SD_Gundam_G_Generation_Advance_chs_1.4.gba","./roms/SD_Gundam_G_Generation_Advance_chs_1.4_eepromfix.gba",0x08000000
 
 gEEPROMConfig               equ 0x030044E4
 EEPROM_SaveAddress          equ 0x0DFFFF00
