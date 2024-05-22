@@ -1,6 +1,6 @@
-//本代码来自于召唤之夜-铸剑物语3反编译工程 include/gba/eeprom.h
-#ifndef GUARD_GBA_EEPROM_H
-#define GUARD_GBA_EEPROM_H
+//本代码来自于塞尔达传说缩小帽反编译工程 include/gba/eeprom.h
+#ifndef GUARD_GBA_EEPROM
+#define GUARD_GBA_EEPROM
 
 #include "types.h"
 
@@ -21,14 +21,16 @@ u16 EEPROMRead(u16 address, u16* data);
 u16 EEPROMCompare(u16 address, const u16* data);
 u16 EEPROMWrite0_8k_Check(u16 address, const u16* data);
 
+#endif // GUARD_GBA_EEPROM
 
-#endif // GUARD_GBA_EEPROM_H
-
-//本代码来自于召唤之夜-铸剑物语3反编译工程 src/agb_eeprom.h
+//本代码来自于塞尔达传说缩小帽反编译工程 src/eeprom.c
 #include "global.h"
 #include "gba/eeprom.h"
 
-
+#if defined(DEMO_USA) || defined(DEMO_JP)
+const u8 unk[] = { 0xff, 0xff, 0xff, 0xff };
+const u8 padding[0x18] = {};
+#else
 typedef struct EEPROMConfig {
     u32 unk_00;
     u16 size;
@@ -37,10 +39,11 @@ typedef struct EEPROMConfig {
     // u8 filler[3];
 } EEPROMConfig;
 
-const char EEPROM_V126[] = "EEPROM_V126";
+const char EEPROM_V124[] = "EEPROM_V124";
 extern const EEPROMConfig* gEEPROMConfig;
 const EEPROMConfig gEEPROMConfig512 = { 0x200, 0x40, 0x300, 0x6 };
 const EEPROMConfig gEEPROMConfig8k = { 0x2000, 0x400, 0x300, 0xe };
+
 u16 EEPROMWrite(u16, const u16*, u8);
 
 u16 EEPROMConfigure(u16 unk_1) {
@@ -84,8 +87,6 @@ static void DMA3Transfer(const void* src, void* dest, u16 count) {
  * @param data u16[4]
  * @return errorcode, 0 on success
  */
-
-
 u16 EEPROMRead(u16 address, u16* data) {
     u16 buffer[0x44];
 
@@ -100,19 +101,17 @@ u16 EEPROMRead(u16 address, u16* data) {
         // setup address
         (u8*)ptr += (gEEPROMConfig->address_width << 1) + 1;
         ((u8*)ptr)++;
-        ptr[1] = 0;
-        ptr[0] = 0;
         for (t1 = 0; t1 < gEEPROMConfig->address_width; t1++) {
-            *(ptr--) = 1 & address;
+            *(ptr--) = address;
             address >>= 1;
         }
         // read request
         *(ptr--) = 1;
         *ptr = 1;
         // send address to eeprom
-        DMA3Transfer(buffer, (u16*)0xdffff00, gEEPROMConfig->address_width + 3);
+        DMA3Transfer(buffer, (u16*)0xd000000, gEEPROMConfig->address_width + 3);
         // recieve data
-        DMA3Transfer((u16*)0xdffff00, buffer, 0x44);
+        DMA3Transfer((u16*)0xd000000, buffer, 0x44);
         // 4 bit junk
         ptr = buffer + 4;
         data += 3;
@@ -134,15 +133,16 @@ u16 EEPROMWrite1(u16 address, const u16* data) {
 }
 
 // reading from EEPROM like a status register
-#define REG_EEPROM (*(vu16*)0xdffff00)
+#define REG_EEPROM (*(vu16*)0xd000000)
 
 u16 EEPROMWrite(u16 address, const u16* data, u8 unk_3) {
     u16 buffer[0x52]; // this is one too large?
-    vu16 timeoutFlag;
-    vu16 prevVcount;      
-    vu16 currentVcount;   
-    vu32 passedScanlines; 
+    vu16 timeout_flag;
+    vu16 prev_vcount;      // stack + a6
+    vu16 current_vcount;   // stack + a8
+    vu32 passed_scanlines; // stack + ac
     u16 ret;
+    vu16* temp2;
 
     u32 r2;
 
@@ -158,7 +158,7 @@ u16 EEPROMWrite(u16 address, const u16* data, u8 unk_3) {
     for (i = 0; i < 4; i++) {
         r2 = *data++;
         for (j = 0; j < 16; j++) {
-            *ptr = 1 & r2;
+            *ptr = r2;
             ptr--;
             r2 = r2 >> 1;
         }
@@ -166,37 +166,37 @@ u16 EEPROMWrite(u16 address, const u16* data, u8 unk_3) {
 
     // copy address to buffer
     for (i = 0; i < gEEPROMConfig->address_width; i++) {
-        *ptr = 1 & address;
+        *ptr = address;
         ptr--;
         address = address >> 1;
     }
     *ptr-- = 0;
     *ptr-- = 1;
-    DMA3Transfer(buffer, (u16*)0xdffff00, gEEPROMConfig->address_width + 0x43);
+    DMA3Transfer(buffer, (u16*)0xd000000, gEEPROMConfig->address_width + 0x43);
     ret = 0;
-    timeoutFlag = 0;
-    prevVcount = REG_VCOUNT;
-    passedScanlines = 0;
+    timeout_flag = 0;
+    prev_vcount = REG_VCOUNT;
+    passed_scanlines = 0;
 
     while (1) {
-        if (!timeoutFlag) {
+        if (!timeout_flag) {
             if (REG_EEPROM & 1) {
-                timeoutFlag++;
+                timeout_flag++;
                 if (!unk_3)
                     break;
             }
         }
 
-        currentVcount = REG_VCOUNT;
-        if (currentVcount != prevVcount) {
-            if (currentVcount > prevVcount) {
-                passedScanlines += (currentVcount - prevVcount);
+        current_vcount = REG_VCOUNT;
+        if (current_vcount != prev_vcount) {
+            if (current_vcount > prev_vcount) {
+                passed_scanlines += (current_vcount - prev_vcount);
             } else {
-                passedScanlines += (currentVcount - (prevVcount - 0xE4));
+                passed_scanlines += (current_vcount - (prev_vcount - 0xE4));
             }
 
-            if (passedScanlines > 0x88) {
-                if (timeoutFlag)
+            if (passed_scanlines > 0x88) {
+                if (timeout_flag)
                     break;
                 if ((REG_EEPROM & 1)) {
                     break;
@@ -205,7 +205,7 @@ u16 EEPROMWrite(u16 address, const u16* data, u8 unk_3) {
                 ret = 0xc001;
                 break;
             }
-            prevVcount = currentVcount;
+            prev_vcount = current_vcount;
         }
     }
 
@@ -235,6 +235,8 @@ u16 EEPROMCompare(u16 address, const u16* data) {
     return ret;
 }
 
+const char EEPROM_NOWAIT[] = "EEPROM_NOWAIT";
+
 u16 EEPROMWrite1_check(u16 address, const u16* data) {
     u8 i;
     u16 ret;
@@ -249,8 +251,6 @@ u16 EEPROMWrite1_check(u16 address, const u16* data) {
     }
     return ret;
 }
-/*
-The code below is the remaining code of tmc's eeprom. Idk why csm3 doesn't use them. 
 
 u16 EEPROMWrite0_8k(u16 address, const u16* data) {
     u16 ret;
@@ -279,4 +279,6 @@ u16 EEPROMWrite0_8k_Check(u16 address, const u16* data) {
     return ret;
 }
 
-*/
+const char thing[0x1c] = "\xff\xff\xff\xff";
+
+#endif
