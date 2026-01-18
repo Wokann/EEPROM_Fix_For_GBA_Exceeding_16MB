@@ -1,22 +1,21 @@
 .gba
-.create "./roms/Juka_and_the_Monophonic_Menace_(C)_eepromfix.gba",0x08000000
+.create "./roms/IQUE_Mario_Luigi_RPG_eepromfix.gba",0x08000000
 .close
-.open "./roms/Juka_and_the_Monophonic_Menace_(C).gba","./roms/Juka_and_the_Monophonic_Menace_(C)_eepromfix.gba",0x08000000
+.open "./roms/IQUE_Mario_Luigi_RPG.gba","./roms/IQUE_Mario_Luigi_RPG_eepromfix.gba",0x08000000
 
-gEEPROMConfig               equ 0x03006600
+gEEPROMConfig               equ 0x03001BF0
 EEPROM_SaveAddress          equ 0x0DFFFF00
 
-EEPROM_Type                 equ 0x08F7588C
+EEPROM_Type                 equ 0x082066D4
 EEPROM_Config512            equ EEPROM_Type + 0xC
 EEPROM_Config8k             equ EEPROM_Config512 + 0xC
 
-EEPROMConfigure             equ 0x0802767C //nothing to hack
-DMA3Transfer                equ 0x080276C4 //nothing to hack
-EEPROMRead                  equ 0x08027744 //need to hack
-EEPROMWrite1                equ 0x080277F4 //nothing to hack
-EEPROMWrite                 equ 0x08027808 //need to hack
-EEPROMCompare               equ 0x08027968 //nothing to hack
-EEPROMWrite1_check          equ 0x08027A00 //nothing to hack
+EEPROMConfigure             equ 0x081CC874 //nothing to hack
+DMA3Transfer                equ 0x081CC9EC //nothing to hack
+EEPROMRead                  equ 0x081CCA6C //need to hack
+EEPROMWrite                 equ 0x081CCB1C //need to hack
+EEPROMCompare               equ 0x081CBF8 //nothing to hack
+EEPROMWrite1_check          equ 0x081CCC50 //nothing to hack
 
 HardwareSaveFlag            equ 0x06017FFC
 Hack_Address                equ 0x09200000
@@ -47,11 +46,10 @@ Hack_Address                equ 0x09200000
  .pool
 
 .org EEPROMWrite + 0x10
-    add sp,0xB0 
-    mov r0,r1
+    add sp,0xA4 
+    mov r0,r4
     mov r1,r5
-    mov r2,r7
-    pop r4-r7              ;到此处为止的代码为将数据还原回初始输入的r0、r1和堆栈（除lr）
+    pop r4-r5              ;到此处为止的代码为将数据还原回初始输入的r0、r1和堆栈（除lr）
     push r0-r2             ;r0用作跳转地址，r1记录读写类别
     mov r1,1               ;写入存档
     ldr r0,=Save_Fix

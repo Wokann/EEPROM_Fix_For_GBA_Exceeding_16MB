@@ -2,3 +2,9 @@
 .\tools\armips\armips.exe .\EEPROM_Fix_SummonNight_CraftSword2_chs.asm
 .\tools\armips\armips.exe .\EEPROM_Fix_SD_Gundam_G_Generation_Advance_chs.asm
 .\tools\armips\armips.exe .\EEPROM_Fix_Juka_and_the_Monophonic_Menace_chs.asm
+.\tools\armips\armips.exe .\EEPROM_Fix_Shin_chan_Aventuras_en_Cineland_eng.asm
+.\tools\armips\armips.exe .\EEPROM_Fix_Shin_chan_Aventuras_en_Cineland_chs.asm
+.\tools\armips\armips.exe .\EEPROM_Fix_Mario_Luigi_RPG.asm
+.\tools\armips\armips.exe .\EEPROM_Fix_guholang.asm
+.\tools\armips\armips.exe .\Lord_of_the_Rings_The_return_of_the_king_v0.4a_chs.asm
+.\tools\armips\armips.exe .\Lord_of_the_Rings_The_return_of_the_king_v0.4b_chs.asm

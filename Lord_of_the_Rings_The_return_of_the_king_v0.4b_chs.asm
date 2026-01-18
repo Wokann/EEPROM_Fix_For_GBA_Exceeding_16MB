@@ -1,22 +1,21 @@
 .gba
-.create "./roms/Juka_and_the_Monophonic_Menace_(C)_eepromfix.gba",0x08000000
+.create "./roms/Lord_of_the_Rings_The_return_of_the_king_chs_v0.4b_eepromfix.gba",0x08000000
 .close
-.open "./roms/Juka_and_the_Monophonic_Menace_(C).gba","./roms/Juka_and_the_Monophonic_Menace_(C)_eepromfix.gba",0x08000000
+.open "./roms/Lord_of_the_Rings_The_return_of_the_king_chs_v0.4b.gba","./roms/Lord_of_the_Rings_The_return_of_the_king_chs_v0.4b_eepromfix.gba",0x08000000
 
-gEEPROMConfig               equ 0x03006600
+gEEPROMConfig               equ 0x030077D0
 EEPROM_SaveAddress          equ 0x0DFFFF00
 
-EEPROM_Type                 equ 0x08F7588C
+EEPROM_Type                 equ 0x08269870
 EEPROM_Config512            equ EEPROM_Type + 0xC
 EEPROM_Config8k             equ EEPROM_Config512 + 0xC
 
-EEPROMConfigure             equ 0x0802767C //nothing to hack
-DMA3Transfer                equ 0x080276C4 //nothing to hack
-EEPROMRead                  equ 0x08027744 //need to hack
-EEPROMWrite1                equ 0x080277F4 //nothing to hack
-EEPROMWrite                 equ 0x08027808 //need to hack
-EEPROMCompare               equ 0x08027968 //nothing to hack
-EEPROMWrite1_check          equ 0x08027A00 //nothing to hack
+EEPROMConfigure             equ 0x0804DBE8 //nothing to hack
+DMA3Transfer                equ 0x0804DD60 //nothing to hack
+EEPROMRead                  equ 0x0804DDE0 //need to hack
+EEPROMWrite                 equ 0x0804DE90 //need to hack
+EEPROMCompare               equ 0x0804DF6C //nothing to hack
+EEPROMWrite1_check          equ 0x0804DFC4 //nothing to hack
 
 HardwareSaveFlag            equ 0x06017FFC
 Hack_Address                equ 0x09200000
@@ -47,11 +46,10 @@ Hack_Address                equ 0x09200000
  .pool
 
 .org EEPROMWrite + 0x10
-    add sp,0xB0 
-    mov r0,r1
+    add sp,0xA4 
+    mov r0,r4
     mov r1,r5
-    mov r2,r7
-    pop r4-r7              ;到此处为止的代码为将数据还原回初始输入的r0、r1和堆栈（除lr）
+    pop r4-r5              ;到此处为止的代码为将数据还原回初始输入的r0、r1和堆栈（除lr）
     push r0-r2             ;r0用作跳转地址，r1记录读写类别
     mov r1,1               ;写入存档
     ldr r0,=Save_Fix
@@ -70,6 +68,11 @@ Hack_Address                equ 0x09200000
 ;0b10(0x2):HaveSRAM       0b11(0x3):HaveEEPROM_SRAM
 ;存档兼容逻辑为，有EEPROM则使用EEPROM（1、3），无EEPROM则使用SRAM（0、2）
 .func Save_Fix
+   b @@EEPROMOnly ;b @@EEPROM_SRAM     选择强制启用仅eeprom修复或eeprom、sram兼容
+ @@EEPROMOnly:
+   mov r0,1
+   b @@CheckResult
+ @@EEPROM_SRAM:
    push r1
  @@CheckFlagSet:
    ldr r2,=HardwareSaveFlag
@@ -95,31 +98,7 @@ Hack_Address                equ 0x09200000
    pop r1
    b @@CheckResult
  .pool
-/*
-;此代码用于切换cpu模式，sys、svc、irq，从sys切换到svc，获取svc栈的地址，
-;svc栈地址再减去128，或许是比较安全不被使用的空间，可能能用来存放临时数据。
-;或者使用irq区域。
-;但也需要确认实际情况是否会被占用，如宝可梦绿宝石对这块栈的分配，0x80有可能会被游戏用到，不能随意使用）
-;来自于enler大佬的存放临时数据的思路
-   .align 4
-   .thumb
-   push r0
-   bx pc
-   .arm
-   mov r0,0x12
-   msr cpsr_cf,r0
-   mov r1,sp
-   sub r1,0x80
-   mov r0,0x1f
-   msr cpsr_cf,r0
-   add r0,pc,1
-   bx r0
-   .thumb
-   pop r0
-   str r0,[r1]
-;或选择0x03007EE0-0x03007EEF之间的用于异常情况的区域Debug Exception Stack存放。
-;（见gbatek GBA BIOS RAM Usage）
-*/
+
 
  ;判断读取或写入情况，及硬件对应的存档类别
  @@CheckResult:
@@ -664,7 +643,7 @@ Hack_Address                equ 0x09200000
 ;  2-2:eeprom修复版rom，进入游戏前设置eeprom8K存档格式打开，且文件大小必须大于0x01200000(小于等于时不会切换为0x23存档模式)
 EndHack:
    ;切换填充模式，请更改 IfFill32MB 的定义值
-   IfFill32MB    equ   0
+   IfFill32MB    equ   1
    .if (IfFill32MB == 1)
       ;填充满32MB模式
       .fill (0x0A000000 - EndHack),0x00

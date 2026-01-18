@@ -1,25 +1,25 @@
 .gba
-.create "./roms/Juka_and_the_Monophonic_Menace_(C)_eepromfix.gba",0x08000000
+.create "./roms/1837chs_eepromfix.gba",0x08000000
 .close
-.open "./roms/Juka_and_the_Monophonic_Menace_(C).gba","./roms/Juka_and_the_Monophonic_Menace_(C)_eepromfix.gba",0x08000000
+.open "./roms/1837chs.gba","./roms/1837chs_eepromfix.gba",0x08000000
 
-gEEPROMConfig               equ 0x03006600
+gEEPROMConfig               equ 0x0200DB18
 EEPROM_SaveAddress          equ 0x0DFFFF00
 
-EEPROM_Type                 equ 0x08F7588C
+EEPROM_Type                 equ 0x08F5430
 EEPROM_Config512            equ EEPROM_Type + 0xC
 EEPROM_Config8k             equ EEPROM_Config512 + 0xC
 
-EEPROMConfigure             equ 0x0802767C //nothing to hack
-DMA3Transfer                equ 0x080276C4 //nothing to hack
-EEPROMRead                  equ 0x08027744 //need to hack
-EEPROMWrite1                equ 0x080277F4 //nothing to hack
-EEPROMWrite                 equ 0x08027808 //need to hack
-EEPROMCompare               equ 0x08027968 //nothing to hack
-EEPROMWrite1_check          equ 0x08027A00 //nothing to hack
+EEPROMConfigure             equ 0x08049148 //nothing to hack
+DMA3Transfer                equ 0x08049194 //nothing to hack
+EEPROMRead                  equ 0x08049210 //need to hack
+EEPROMWrite1                equ 0x080492C0 //nothing to hack
+EEPROMWrite                 equ 0x080492D4 //need to hack
+EEPROMCompare               equ 0x08049434 //nothing to hack
+//EEPROMWrite1_check          equ 0x08027A00 //nothing to hack
 
 HardwareSaveFlag            equ 0x06017FFC
-Hack_Address                equ 0x09200000
+Hack_Address                equ 0x09800000
 
 ;.org 0x080000A0
 ;   .asciiz "CRAFTSWORD HB3CJ"
@@ -95,31 +95,7 @@ Hack_Address                equ 0x09200000
    pop r1
    b @@CheckResult
  .pool
-/*
-;此代码用于切换cpu模式，sys、svc、irq，从sys切换到svc，获取svc栈的地址，
-;svc栈地址再减去128，或许是比较安全不被使用的空间，可能能用来存放临时数据。
-;或者使用irq区域。
-;但也需要确认实际情况是否会被占用，如宝可梦绿宝石对这块栈的分配，0x80有可能会被游戏用到，不能随意使用）
-;来自于enler大佬的存放临时数据的思路
-   .align 4
-   .thumb
-   push r0
-   bx pc
-   .arm
-   mov r0,0x12
-   msr cpsr_cf,r0
-   mov r1,sp
-   sub r1,0x80
-   mov r0,0x1f
-   msr cpsr_cf,r0
-   add r0,pc,1
-   bx r0
-   .thumb
-   pop r0
-   str r0,[r1]
-;或选择0x03007EE0-0x03007EEF之间的用于异常情况的区域Debug Exception Stack存放。
-;（见gbatek GBA BIOS RAM Usage）
-*/
+
 
  ;判断读取或写入情况，及硬件对应的存档类别
  @@CheckResult:
@@ -664,7 +640,7 @@ Hack_Address                equ 0x09200000
 ;  2-2:eeprom修复版rom，进入游戏前设置eeprom8K存档格式打开，且文件大小必须大于0x01200000(小于等于时不会切换为0x23存档模式)
 EndHack:
    ;切换填充模式，请更改 IfFill32MB 的定义值
-   IfFill32MB    equ   0
+   IfFill32MB    equ   1
    .if (IfFill32MB == 1)
       ;填充满32MB模式
       .fill (0x0A000000 - EndHack),0x00

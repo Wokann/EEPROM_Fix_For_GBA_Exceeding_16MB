@@ -1,25 +1,25 @@
 .gba
-.create "./roms/Juka_and_the_Monophonic_Menace_(C)_eepromfix.gba",0x08000000
+.create "./roms/Shin_chan_Aventuras_en_Cineland_chs_eepromfix.gba",0x08000000
 .close
-.open "./roms/Juka_and_the_Monophonic_Menace_(C).gba","./roms/Juka_and_the_Monophonic_Menace_(C)_eepromfix.gba",0x08000000
+.open "./roms/Shin_chan_Aventuras_en_Cineland_chs.gba","./roms/Shin_chan_Aventuras_en_Cineland_chs_eepromfix.gba",0x08000000
 
-gEEPROMConfig               equ 0x03006600
+gEEPROMConfig               equ 0x0202FD60
 EEPROM_SaveAddress          equ 0x0DFFFF00
 
-EEPROM_Type                 equ 0x08F7588C
+EEPROM_Type                 equ 0x084804A4
 EEPROM_Config512            equ EEPROM_Type + 0xC
 EEPROM_Config8k             equ EEPROM_Config512 + 0xC
 
-EEPROMConfigure             equ 0x0802767C //nothing to hack
-DMA3Transfer                equ 0x080276C4 //nothing to hack
-EEPROMRead                  equ 0x08027744 //need to hack
-EEPROMWrite1                equ 0x080277F4 //nothing to hack
-EEPROMWrite                 equ 0x08027808 //need to hack
-EEPROMCompare               equ 0x08027968 //nothing to hack
-EEPROMWrite1_check          equ 0x08027A00 //nothing to hack
+EEPROMConfigure             equ 0x08096FF4;0x08097FAC //nothing to hack
+DMA3Transfer                equ 0x0809703C;0x08097FF4 //nothing to hack
+EEPROMRead                  equ 0x080970BC;0x08098074 //need to hack
+EEPROMWrite1                equ 0x0809716C;0x08098124 //nothing to hack
+EEPROMWrite                 equ 0x08097180;0x08098138 //need to hack
+EEPROMCompare               equ 0x080972E0;0x08098298 //nothing to hack
+EEPROMWrite1_check          equ 0x08097338;0x080982F0 //nothing to hack
 
 HardwareSaveFlag            equ 0x06017FFC
-Hack_Address                equ 0x09200000
+Hack_Address                equ 0x09E00000
 
 ;.org 0x080000A0
 ;   .asciiz "CRAFTSWORD HB3CJ"
