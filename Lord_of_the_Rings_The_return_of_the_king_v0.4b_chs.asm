@@ -68,7 +68,7 @@ Hack_Address                equ 0x09200000
 ;0b10(0x2):HaveSRAM       0b11(0x3):HaveEEPROM_SRAM
 ;存档兼容逻辑为，有EEPROM则使用EEPROM（1、3），无EEPROM则使用SRAM（0、2）
 .func Save_Fix
-   b @@EEPROMOnly ;b @@EEPROM_SRAM     选择强制启用仅eeprom修复或eeprom、sram兼容
+   b @@EEPROM_SRAM;b @@EEPROMOnly ;b @@EEPROM_SRAM     选择强制启用仅eeprom修复或eeprom、sram兼容
  @@EEPROMOnly:
    mov r0,1
    b @@CheckResult

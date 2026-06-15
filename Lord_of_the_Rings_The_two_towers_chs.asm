@@ -1,24 +1,24 @@
 .gba
-.create "./roms/Lord_of_the_Rings_The_return_of_the_king_chs_v0.4a_eepromfix.gba",0x08000000
+.create "./roms/Lord_of_the_Rings_The_two_towers_chs_eepromfix.gba",0x08000000
 .close
-.open "./roms/Lord_of_the_Rings_The_return_of_the_king_chs_v0.4a.gba","./roms/Lord_of_the_Rings_The_return_of_the_king_chs_v0.4a_eepromfix.gba",0x08000000
+.open "./roms/Lord_of_the_Rings_The_two_towers_chs.gba","./roms/Lord_of_the_Rings_The_two_towers_chs_eepromfix.gba",0x08000000
 
-gEEPROMConfig               equ 0x030077D0
+gEEPROMConfig               equ 0x0300664C
 EEPROM_SaveAddress          equ 0x0DFFFF00
 
-EEPROM_Type                 equ 0x08269870
+EEPROM_Type                 equ 0x0832764C
 EEPROM_Config512            equ EEPROM_Type + 0xC
 EEPROM_Config8k             equ EEPROM_Config512 + 0xC
 
-EEPROMConfigure             equ 0x0804DBE8 //nothing to hack
-DMA3Transfer                equ 0x0804DD60 //nothing to hack
-EEPROMRead                  equ 0x0804DDE0 //need to hack
-EEPROMWrite                 equ 0x0804DE90 //need to hack
-EEPROMCompare               equ 0x0804DF6C //nothing to hack
-EEPROMWrite1_check          equ 0x0804DFC4 //nothing to hack
+EEPROMConfigure             equ 0x08045BD0 //nothing to hack
+DMA3Transfer                equ 0x08045D3C //nothing to hack
+EEPROMRead                  equ 0x08045DBC //need to hack
+EEPROMWrite                 equ 0x08045E6C //need to hack
+EEPROMCompare               equ 0x08045F48 //nothing to hack
+EEPROMWrite1_check          equ 0x08045FA0 //nothing to hack
 
 HardwareSaveFlag            equ 0x06017FFC
-Hack_Address                equ 0x09200000
+Hack_Address                equ 0x09D00000
 
 ;.org 0x080000A0
 ;   .asciiz "CRAFTSWORD HB3CJ"
@@ -634,6 +634,18 @@ Hack_Address                equ 0x09200000
    pop {r1}
    bx r1
 .endfunc
+
+.func test
+.endfunc
+
+.org 0x09d00430
+.hword 0,1,2
+
+
+.org test
+nop
+nop
+nop
 
 ;末尾字节填充
 ;若不填充满32MB也可，但需要注意以下使用情况
